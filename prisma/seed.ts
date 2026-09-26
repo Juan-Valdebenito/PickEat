@@ -1,10 +1,14 @@
 import "dotenv/config";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 
 const prisma = new PrismaClient({
-  adapter: new PrismaBetterSqlite3({ url: process.env.DATABASE_URL ?? "file:./dev.db" }),
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL }),
 });
+
+// Sin --reset el seed solo carga datos si la base está vacía, así se puede
+// ejecutar en cada despliegue sin borrar pedidos. Con --reset borra todo y recarga.
+const RESET = process.argv.includes("--reset");
 
 const TABLE_COUNT = 12;
 
@@ -75,6 +79,11 @@ const menu = [
 ];
 
 async function main() {
+  if (!RESET && (await prisma.table.count()) > 0) {
+    console.log("La base ya tiene datos, no se cargó el seed (usa --reset para recargar).");
+    return;
+  }
+
   await prisma.$transaction([
     prisma.orderItem.deleteMany(),
     prisma.order.deleteMany(),

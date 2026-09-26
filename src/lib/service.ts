@@ -1,7 +1,6 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "./db";
-import { publish } from "./events";
 import {
   CALL_TYPES,
   ORDER_STATUSES,
@@ -181,7 +180,6 @@ export async function createOrder(tableNumber: number, items: NewOrderItem[]) {
     include: orderInclude,
   });
 
-  publish({ type: "order.created", table: tableNumber, orderId: order.id });
   return toOrderDTO(order);
 }
 
@@ -200,7 +198,6 @@ export async function createCall(tableNumber: number, type: string) {
   });
   if (!existing) {
     await prisma.waiterCall.create({ data: { sessionId: session.id, type } });
-    publish({ type: "call.created", table: tableNumber, callType: type });
   }
 }
 
@@ -265,7 +262,6 @@ export async function updateOrderStatus(orderId: number, status: string) {
   if (count === 0) throw new ServiceError("El pedido cambió mientras tanto, recarga", 409);
 
   const order = await prisma.order.findUniqueOrThrow({ where: { id: orderId }, include: orderInclude });
-  publish({ type: "order.updated", table: order.session.table.number, orderId, status });
   return toOrderDTO(order);
 }
 
@@ -277,7 +273,6 @@ export async function resolveCall(callId: number) {
   if (!call) throw new ServiceError("El llamado no existe", 404);
   if (!call.resolvedAt) {
     await prisma.waiterCall.update({ where: { id: callId }, data: { resolvedAt: new Date() } });
-    publish({ type: "call.resolved", table: call.session.table.number });
   }
 }
 
@@ -301,5 +296,4 @@ export async function closeTable(tableNumber: number) {
     }),
     prisma.tableSession.update({ where: { id: session.id }, data: { closedAt: now } }),
   ]);
-  publish({ type: "session.closed", table: tableNumber });
 }

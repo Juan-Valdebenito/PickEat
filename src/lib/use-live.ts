@@ -1,54 +1,55 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { LiveEvent } from "./events";
 
-type Options = {
-  // Si se indica, solo llegan eventos de esa mesa.
-  table?: number;
-  onEvent?: (event: LiveEvent) => void;
+const POLL_MS = 3_000;
+
+type Options<T> = {
+  // Se llama con los datos anteriores y los nuevos cada vez que llega una respuesta.
+  // `prev` es null en la primera carga. Útil para detectar novedades (y sonar).
+  onChange?: (prev: T | null, next: T) => void;
 };
 
-// Carga `url`, se suscribe a /api/eventos y vuelve a cargar cada vez que llega un cambio.
-// Si la conexión en vivo se cae, un sondeo cada 20 s mantiene la pantalla al día.
-export function useLiveData<T>(url: string, { table, onEvent }: Options = {}) {
+// Carga `url` y la vuelve a consultar cada 3 s mientras la pestaña está visible.
+// Se usa sondeo en vez de WebSockets/SSE porque en Vercel las funciones son
+// efímeras y no comparten memoria entre instancias.
+export function useLiveData<T>(url: string, { onChange }: Options<T> = {}) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [connected, setConnected] = useState(false);
-  const onEventRef = useRef(onEvent);
-  onEventRef.current = onEvent;
+  const [connected, setConnected] = useState(true);
+  const dataRef = useRef<T | null>(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
   const refresh = useCallback(async () => {
     try {
       const res = await fetch(url, { cache: "no-store" });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "No se pudo cargar");
+      onChangeRef.current?.(dataRef.current, body as T);
+      dataRef.current = body as T;
       setData(body as T);
       setError(null);
+      setConnected(true);
     } catch (err) {
+      setConnected(false);
       setError(err instanceof Error ? err.message : "No se pudo cargar");
     }
   }, [url]);
 
   useEffect(() => {
+    dataRef.current = null;
     refresh();
-    const source = new EventSource(table ? `/api/eventos?mesa=${table}` : "/api/eventos");
-    source.onopen = () => {
-      setConnected(true);
-      refresh(); // al reconectar puede haber cambios que no escuchamos
-    };
-    source.onerror = () => setConnected(false);
-    source.onmessage = (msg) => {
-      const event = JSON.parse(msg.data) as LiveEvent;
-      onEventRef.current?.(event);
-      refresh();
-    };
-    const poll = setInterval(refresh, 20_000);
+    const poll = setInterval(() => {
+      if (document.visibilityState === "visible") refresh();
+    }, POLL_MS);
+    const onVisible = () => document.visibilityState === "visible" && refresh();
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
-      source.close();
       clearInterval(poll);
+      document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [refresh, table]);
+  }, [refresh]);
 
   return { data, error, connected, refresh };
 }

@@ -44,7 +44,7 @@ export function StaffHeader({
         className={`flex items-center gap-1.5 text-xs font-medium ${connected ? "text-emerald-500" : "text-red-500"}`}
       >
         <span className={`h-2 w-2 rounded-full ${connected ? "bg-emerald-500" : "bg-red-500"}`} />
-        {connected ? "En vivo" : "Reconectando…"}
+        {connected ? "En vivo" : "Sin conexión"}
       </span>
       <div className="ml-auto flex items-center gap-3">
         {children}

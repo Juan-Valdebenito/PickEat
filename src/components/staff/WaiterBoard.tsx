@@ -40,9 +40,12 @@ export function WaiterBoard() {
   const [error, setError] = useState<string | null>(null);
   const [openTable, setOpenTable] = useState<number | null>(null);
   const live = useLiveData<BoardDTO>("/api/tablero", {
-    onEvent: (e) => {
-      if (e.type === "call.created") beep([988, 784, 988]);
-      if (e.type === "order.updated" && e.status === "READY") beep([784, 1047]);
+    onChange: (prev, next) => {
+      if (!prev) return;
+      const seenCalls = new Set(prev.calls.map((c) => c.id));
+      const seenReady = new Set(prev.orders.filter((o) => o.status === "READY").map((o) => o.id));
+      if (next.calls.some((c) => !seenCalls.has(c.id))) beep([988, 784, 988]);
+      else if (next.orders.some((o) => o.status === "READY" && !seenReady.has(o.id))) beep([784, 1047]);
     },
   });
 
@@ -236,7 +239,7 @@ function TableDetail({
   onClose: () => void;
   onAct: ActFn;
 }) {
-  const detail = useLiveData<TableStateDTO>(`/api/mesas/${table}`, { table });
+  const detail = useLiveData<TableStateDTO>(`/api/mesas/${table}`);
   const calls = board.calls.filter((c) => c.table === table);
   const state = detail.data;
   const undelivered = state?.orders.filter((o) => o.status !== "DELIVERED").length ?? 0;

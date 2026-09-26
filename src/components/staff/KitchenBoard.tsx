@@ -28,8 +28,10 @@ export function KitchenBoard() {
   const now = useNow();
   const [error, setError] = useState<string | null>(null);
   const live = useLiveData<BoardDTO>("/api/tablero", {
-    onEvent: (e) => {
-      if (e.type === "order.created") beep([660, 880, 1320]);
+    onChange: (prev, next) => {
+      if (!prev) return;
+      const seen = new Set(prev.orders.map((o) => o.id));
+      if (next.orders.some((o) => !seen.has(o.id))) beep([660, 880, 1320]);
     },
   });
 

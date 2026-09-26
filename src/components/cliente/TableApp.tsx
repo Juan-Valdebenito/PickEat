@@ -15,7 +15,7 @@ type Props = { table: number; menu: MenuCategory[] };
 export function TableApp({ table, menu }: Props) {
   const products = useMemo(() => menu.flatMap((c) => c.products), [menu]);
   const cart = useCart(table, products);
-  const live = useLiveData<TableStateDTO>(`/api/mesas/${table}`, { table });
+  const live = useLiveData<TableStateDTO>(`/api/mesas/${table}`);
 
   const [view, setView] = useState<"carta" | "cuenta">("carta");
   const [selected, setSelected] = useState<MenuProduct | null>(null);
