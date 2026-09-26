@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Table {
+  id       Int            @id @default(autoincrement())
+  number   Int            @unique
+  sessions TableSession[]
+}
+
+// Una "cuenta" de la mesa: se abre con el primer pedido y se cierra
+// cuando el mesero libera la mesa. Todos los pedidos se suman aquí.
+model TableSession {
+  id            Int         @id @default(autoincrement())
+  tableId       Int
+  table         Table       @relation(fields: [tableId], references: [id])
+  openedAt      DateTime    @default(now())
+  closedAt      DateTime?
+  billRequested Boolean     @default(false)
+  orders        Order[]
+  calls         WaiterCall[]
+
+  @@index([tableId, closedAt])
+}
+
+model Category {
+  id       Int       @id @default(autoincrement())
+  name     String
+  position Int       @default(0)
+  products Product[]
+}
+
+model Product {
+  id          Int         @id @default(autoincrement())
+  categoryId  Int
+  category    Category    @relation(fields: [categoryId], references: [id])
+  name        String
+  description String      @default("")
+  price       Int // CLP, sin decimales
+  imageUrl    String?
+  available   Boolean     @default(true)
+  // JSON: [{ "name": "Punto", "choices": ["Jugoso", "A punto"] }]
+  options     String      @default("[]")
+  orderItems  OrderItem[]
+}
+
+model Order {
+  id        Int          @id @default(autoincrement())
+  sessionId Int
+  session   TableSession @relation(fields: [sessionId], references: [id])
+  // RECEIVED | PREPARING | READY | DELIVERED
+  status    String       @default("RECEIVED")
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  items     OrderItem[]
+
+  @@index([status])
+}
+
+model OrderItem {
+  id        Int     @id @default(autoincrement())
+  orderId   Int
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId Int
+  product   Product @relation(fields: [productId], references: [id])
+  name      String // copia del nombre al momento del pedido
+  unitPrice Int // copia del precio al momento del pedido
+  quantity  Int
+  // JSON: { "Punto": "A punto" }
+  selectedOptions String @default("{}")
+  notes     String  @default("")
+}
+
+model WaiterCall {
+  id         Int          @id @default(autoincrement())
+  sessionId  Int
+  session    TableSession @relation(fields: [sessionId], references: [id])
+  // WAITER | BILL
+  type       String
+  createdAt  DateTime     @default(now())
+  resolvedAt DateTime?
+}
