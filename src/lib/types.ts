@@ -1,67 +1,20 @@
-import type { CallType, OrderStatus } from "./constants";
+import type { FunctionReturnType } from "convex/server";
+import type { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 
-export type ProductOption = { name: string; choices: string[] };
+// Los tipos salen directamente de lo que devuelven las funciones de Convex.
+export type MenuCategory = FunctionReturnType<typeof api.menu.get>[number];
+export type MenuProduct = MenuCategory["products"][number];
+export type ProductOption = MenuProduct["options"][number];
 
-export type MenuProduct = {
-  id: number;
-  name: string;
-  description: string;
-  price: number;
-  imageUrl: string | null;
-  available: boolean;
-  options: ProductOption[];
-};
-
-export type MenuCategory = { id: number; name: string; products: MenuProduct[] };
-
-export type OrderItemDTO = {
-  id: number;
-  name: string;
-  quantity: number;
-  unitPrice: number;
-  selectedOptions: Record<string, string>;
-  notes: string;
-};
-
-export type OrderDTO = {
-  id: number;
-  table: number;
-  status: OrderStatus;
-  createdAt: string;
-  updatedAt: string;
-  items: OrderItemDTO[];
-};
-
-export type CallDTO = { id: number; table: number; type: CallType; createdAt: string };
-
-export type TableStateDTO = {
-  table: number;
-  sessionOpen: boolean;
-  billRequested: boolean;
-  orders: OrderDTO[];
-  total: number;
-  pendingCalls: CallType[];
-};
-
-export type OpenTableDTO = {
-  table: number;
-  openedAt: string;
-  billRequested: boolean;
-  total: number;
-  undelivered: number;
-};
-
-export type BoardDTO = {
-  orders: OrderDTO[];
-  calls: CallDTO[];
-  tables: OpenTableDTO[];
-  // Todas las mesas del local, para dibujar el salón completo
-  tableNumbers: number[];
-};
+export type TableStateDTO = FunctionReturnType<typeof api.tables.state>;
+export type BoardDTO = FunctionReturnType<typeof api.orders.board>;
+export type OrderDTO = BoardDTO["orders"][number];
+export type CallDTO = BoardDTO["calls"][number];
 
 // Payload que envía el cliente al confirmar el carrito
 export type NewOrderItem = {
-  productId: number;
+  productId: Id<"products">;
   quantity: number;
   selectedOptions: Record<string, string>;
   notes: string;

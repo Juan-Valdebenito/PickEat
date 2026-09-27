@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { Id } from "@convex/_generated/dataModel";
 import type { MenuProduct } from "@/lib/types";
 
 export type CartLine = {
@@ -12,7 +13,7 @@ export type CartLine = {
 };
 
 // Dos líneas con el mismo producto, opciones y comentario se fusionan.
-export function lineKey(productId: number, options: Record<string, string>, notes: string) {
+export function lineKey(productId: Id<"products">, options: Record<string, string>, notes: string) {
   return JSON.stringify([productId, Object.entries(options).sort(), notes.trim()]);
 }
 
@@ -27,7 +28,7 @@ export function useCart(table: number, products: MenuProduct[]) {
       const raw = localStorage.getItem(storageKey);
       if (raw) {
         const byId = new Map(products.map((p) => [p.id, p]));
-        const saved = JSON.parse(raw) as (Omit<CartLine, "product"> & { productId: number })[];
+        const saved = JSON.parse(raw) as (Omit<CartLine, "product"> & { productId: Id<"products"> })[];
         // Se rehidrata con los datos actuales de la carta (precio, disponibilidad).
         setLines(
           saved.flatMap(({ productId, ...rest }) => {

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import QRCode from "qrcode";
-import { prisma } from "@/lib/db";
+import { fetchQuery } from "convex/nextjs";
+import { api } from "@convex/_generated/api";
 
 export const dynamic = "force-dynamic";
 
@@ -10,12 +11,12 @@ export default async function Home() {
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
   const proto = h.get("x-forwarded-proto") ?? "http";
-  const tables = await prisma.table.findMany({ orderBy: { number: "asc" } });
+  const tableNumbers = await fetchQuery(api.menu.tableNumbers);
 
   const qrs = await Promise.all(
-    tables.map(async (t) => {
-      const url = `${proto}://${host}/mesa/${t.number}`;
-      return { number: t.number, url, svg: await QRCode.toString(url, { type: "svg", margin: 1 }) };
+    tableNumbers.map(async (number) => {
+      const url = `${proto}://${host}/mesa/${number}`;
+      return { number, url, svg: await QRCode.toString(url, { type: "svg", margin: 1 }) };
     }),
   );
 

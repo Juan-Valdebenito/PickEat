@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useMutation } from "convex/react";
+import { api } from "@convex/_generated/api";
+import { errorMessage } from "@/lib/errors";
 import { formatCLP } from "@/lib/constants";
 import type { NewOrderItem } from "@/lib/types";
 import type { useCart } from "./cart";
@@ -14,6 +17,7 @@ type Props = {
 };
 
 export function CartSheet({ table, cart, onClose, onSent }: Props) {
+  const createOrder = useMutation(api.orders.create);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,16 +31,10 @@ export function CartSheet({ table, cart, onClose, onSent }: Props) {
         selectedOptions: l.selectedOptions,
         notes: l.notes,
       }));
-      const res = await fetch(`/api/mesas/${table}/pedidos`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error ?? `No se pudo enviar el pedido (error ${res.status})`);
+      await createOrder({ tableNumber: table, items });
       onSent();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo enviar el pedido");
+      setError(errorMessage(err, "No se pudo enviar el pedido"));
     } finally {
       setSending(false);
     }

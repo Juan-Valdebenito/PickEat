@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { NEXT_STATUS, STATUS_LABEL, type OrderStatus } from "@/lib/constants";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@convex/_generated/api";
+import { NEXT_STATUS, shortId, STATUS_LABEL, type OrderStatus } from "@/lib/constants";
+import { errorMessage } from "@/lib/errors";
 import { beep } from "@/lib/sound";
-import type { BoardDTO, OrderDTO } from "@/lib/types";
-import { useLiveData } from "@/lib/use-live";
-import { elapsedLabel, minutesSince, sendJSON, StaffHeader, useNow, useSound } from "./shared";
+import type { OrderDTO } from "@/lib/types";
+import { elapsedLabel, minutesSince, StaffHeader, useNow, useOnChange, useSound } from "./shared";
 
 const COLUMNS: { status: OrderStatus; accent: string }[] = [
   { status: "RECEIVED", accent: "border-sky-500" },
@@ -27,37 +29,35 @@ export function KitchenBoard() {
   const { soundOn, enableSound } = useSound();
   const now = useNow();
   const [error, setError] = useState<string | null>(null);
-  const live = useLiveData<BoardDTO>("/api/tablero", {
-    onChange: (prev, next) => {
-      if (!prev) return;
-      const seen = new Set(prev.orders.map((o) => o.id));
-      if (next.orders.some((o) => !seen.has(o.id))) beep([660, 880, 1320]);
-    },
+  const board = useQuery(api.orders.board);
+  const setStatus = useMutation(api.orders.setStatus);
+
+  useOnChange(board, (prev, next) => {
+    const seen = new Set(prev.orders.map((o) => o.id));
+    if (next.orders.some((o) => !seen.has(o.id))) beep([660, 880, 1320]);
   });
 
   async function move(order: OrderDTO, status: OrderStatus) {
     setError(null);
     try {
-      await sendJSON(`/api/pedidos/${order.id}`, "PATCH", { status });
-      live.refresh();
+      await setStatus({ orderId: order.id, status });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error");
-      live.refresh();
+      setError(errorMessage(err));
     }
   }
 
-  const orders = live.data?.orders ?? [];
+  const orders = board?.orders ?? [];
 
   return (
     <div className="min-h-dvh bg-stone-900 text-stone-100">
-      <StaffHeader title="Cocina" connected={live.connected} soundOn={soundOn} onSoundOn={enableSound} dark>
+      <StaffHeader title="Cocina" soundOn={soundOn} onSoundOn={enableSound} dark>
         <span className="text-sm text-stone-400">
           {orders.filter((o) => o.status !== "READY").length} en curso
         </span>
       </StaffHeader>
 
-      {(error || live.error) && (
-        <div className="bg-red-900/60 px-4 py-2 text-sm text-red-100">{error ?? live.error}</div>
+      {error && (
+        <div className="bg-red-900/60 px-4 py-2 text-sm text-red-100">{error}</div>
       )}
 
       <div className="grid gap-4 p-4 lg:grid-cols-3">
@@ -84,7 +84,7 @@ export function KitchenBoard() {
                       <div className="flex items-baseline justify-between gap-2">
                         <div className="text-2xl font-bold">Mesa {order.table}</div>
                         <div className={`text-sm ${late ? "font-semibold text-red-400" : "text-stone-400"}`}>
-                          #{order.id} · {elapsedLabel(order.createdAt, now)}
+                          #{shortId(order.id)} · {elapsedLabel(order.createdAt, now)}
                         </div>
                       </div>
                       <ul className="mt-3 space-y-2">

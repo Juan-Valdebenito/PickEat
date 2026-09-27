@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
+import { fetchQuery } from "convex/nextjs";
+import { api } from "@convex/_generated/api";
 import { TableApp } from "@/components/cliente/TableApp";
-import { getMenu, tableExists } from "@/lib/service";
 
 export const dynamic = "force-dynamic";
 
@@ -11,8 +12,10 @@ export async function generateMetadata({ params }: PageProps<"/mesa/[numero]">) 
 
 export default async function MesaPage({ params }: PageProps<"/mesa/[numero]">) {
   const table = Number((await params).numero);
-  if (!Number.isInteger(table) || !(await tableExists(table))) notFound();
+  if (!Number.isInteger(table) || !(await fetchQuery(api.menu.tableExists, { tableNumber: table }))) {
+    notFound();
+  }
 
-  const menu = await getMenu();
+  const menu = await fetchQuery(api.menu.get);
   return <TableApp table={table} menu={menu} />;
 }

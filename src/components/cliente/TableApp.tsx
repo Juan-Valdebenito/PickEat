@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { formatCLP } from "@/lib/constants";
-import type { MenuCategory, MenuProduct, TableStateDTO } from "@/lib/types";
-import { useLiveData } from "@/lib/use-live";
+import type { MenuCategory, MenuProduct } from "@/lib/types";
+import { useQuery } from "convex/react";
+import { api } from "@convex/_generated/api";
 import { AccountView } from "./AccountView";
 import { useCart } from "./cart";
 import { CartSheet } from "./CartSheet";
@@ -15,7 +16,8 @@ type Props = { table: number; menu: MenuCategory[] };
 export function TableApp({ table, menu }: Props) {
   const products = useMemo(() => menu.flatMap((c) => c.products), [menu]);
   const cart = useCart(table, products);
-  const live = useLiveData<TableStateDTO>(`/api/mesas/${table}`);
+  // Convex mantiene esta consulta actualizada en tiempo real.
+  const state = useQuery(api.tables.state, { tableNumber: table });
 
   const [view, setView] = useState<"carta" | "cuenta">("carta");
   const [selected, setSelected] = useState<MenuProduct | null>(null);
@@ -27,7 +29,7 @@ export function TableApp({ table, menu }: Props) {
     setTimeout(() => setToast(null), 2500);
   }
 
-  const activeOrders = live.data?.orders.filter((o) => o.status !== "DELIVERED").length ?? 0;
+  const activeOrders = state?.orders.filter((o) => o.status !== "DELIVERED").length ?? 0;
 
   return (
     <div className="mx-auto min-h-dvh max-w-xl bg-stone-50 pb-32">
@@ -94,7 +96,7 @@ export function TableApp({ table, menu }: Props) {
           ))}
         </main>
       ) : (
-        <AccountView table={table} state={live.data} error={live.error} onToast={showToast} />
+        <AccountView table={table} state={state} onToast={showToast} />
       )}
 
       {cart.count > 0 && (
@@ -135,7 +137,6 @@ export function TableApp({ table, menu }: Props) {
             cart.clear();
             setCartOpen(false);
             setView("cuenta");
-            live.refresh();
             showToast("¡Pedido enviado a cocina!");
           }}
         />
