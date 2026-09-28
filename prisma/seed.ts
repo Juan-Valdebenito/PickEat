@@ -1,23 +1,20 @@
-// Datos estáticos del local: mesas y carta de ejemplo.
-// Es la única fuente de datos iniciales; `seed:run` los carga en Convex.
+import "dotenv/config";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaClient } from "../src/generated/prisma/client";
 
-export const TABLE_COUNT = 12;
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL }),
+});
 
-export type SeedOption = { name: string; choices: string[] };
+// Sin --reset el seed solo carga datos si la base está vacía, así se puede
+// ejecutar en cada despliegue sin borrar pedidos. Con --reset borra todo y recarga.
+const RESET = process.argv.includes("--reset");
 
-export type SeedProduct = {
-  name: string;
-  description: string;
-  price: number; // CLP, sin decimales
-  available?: boolean;
-  options?: SeedOption[];
-};
+const TABLE_COUNT = 12;
 
-export type SeedCategory = { name: string; products: SeedProduct[] };
+const punto = { name: "Punto de la carne", choices: ["Jugoso", "A punto", "Bien cocido"] };
 
-const punto: SeedOption = { name: "Punto de la carne", choices: ["Jugoso", "A punto", "Bien cocido"] };
-
-export const MENU: SeedCategory[] = [
+const menu = [
   {
     name: "Entradas",
     products: [
@@ -80,3 +77,51 @@ export const MENU: SeedCategory[] = [
     ],
   },
 ];
+
+async function main() {
+  if (!RESET && (await prisma.table.count()) > 0) {
+    console.log("La base ya tiene datos, no se cargó el seed (usa --reset para recargar).");
+    return;
+  }
+
+  await prisma.$transaction([
+    prisma.orderItem.deleteMany(),
+    prisma.order.deleteMany(),
+    prisma.waiterCall.deleteMany(),
+    prisma.tableSession.deleteMany(),
+    prisma.product.deleteMany(),
+    prisma.category.deleteMany(),
+    prisma.table.deleteMany(),
+  ]);
+
+  for (let n = 1; n <= TABLE_COUNT; n++) {
+    await prisma.table.create({ data: { number: n } });
+  }
+
+  for (const [position, category] of menu.entries()) {
+    await prisma.category.create({
+      data: {
+        name: category.name,
+        position,
+        products: {
+          create: category.products.map((p) => ({
+            name: p.name,
+            description: p.description,
+            price: p.price,
+            available: "available" in p ? p.available : true,
+            options: JSON.stringify("options" in p ? p.options : []),
+          })),
+        },
+      },
+    });
+  }
+
+  console.log(`Seed listo: ${TABLE_COUNT} mesas y ${menu.reduce((n, c) => n + c.products.length, 0)} productos.`);
+}
+
+main()
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  })
+  .finally(() => prisma.$disconnect());

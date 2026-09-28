@@ -31,11 +31,6 @@ export const CALL_LABEL: Record<CallType, string> = {
   BILL: "Pide la cuenta",
 };
 
-// Los ids de Convex son largos; para pantallas basta con los últimos caracteres.
-export function shortId(id: string) {
-  return id.slice(-4).toUpperCase();
-}
-
 export function formatCLP(value: number) {
   return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP" }).format(value);
 }

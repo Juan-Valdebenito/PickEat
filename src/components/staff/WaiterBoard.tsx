@@ -1,26 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
-import { api } from "@convex/_generated/api";
-import type { Id } from "@convex/_generated/dataModel";
 import { Sheet } from "@/components/Sheet";
-import { formatCLP, shortId, STATUS_LABEL } from "@/lib/constants";
-import { errorMessage } from "@/lib/errors";
+import { formatCLP, STATUS_LABEL } from "@/lib/constants";
 import { beep } from "@/lib/sound";
-import type { BoardDTO, CallDTO, OrderDTO } from "@/lib/types";
-import { elapsedLabel, minutesSince, StaffHeader, useNow, useOnChange, useSound } from "./shared";
+import type { BoardDTO, CallDTO, OrderDTO, TableStateDTO } from "@/lib/types";
+import { useLiveData } from "@/lib/use-live";
+import { elapsedLabel, minutesSince, sendJSON, StaffHeader, useNow, useSound } from "./shared";
 
 type Task =
-  | { kind: "call"; key: string; table: number; since: number; call: CallDTO }
-  | { kind: "order"; key: string; table: number; since: number; order: OrderDTO };
-
-// Acciones del mesero; cada una devuelve true si salió bien.
-type Actions = {
-  deliver: (orderId: Id<"orders">) => Promise<boolean>;
-  resolve: (callId: Id<"calls">) => Promise<boolean>;
-  closeTable: (table: number) => Promise<boolean>;
-};
+  | { kind: "call"; key: string; table: number; since: string; call: CallDTO }
+  | { kind: "order"; key: string; table: number; since: string; order: OrderDTO };
 
 type TableStatus = "free" | "occupied" | "kitchen" | "ready" | "bill" | "calling";
 
@@ -49,35 +39,30 @@ export function WaiterBoard() {
   const now = useNow();
   const [error, setError] = useState<string | null>(null);
   const [openTable, setOpenTable] = useState<number | null>(null);
-  const board = useQuery(api.orders.board);
-  const setStatus = useMutation(api.orders.setStatus);
-  const resolveCall = useMutation(api.tables.resolveCall);
-  const closeTable = useMutation(api.tables.close);
-
-  useOnChange(board, (prev, next) => {
-    const seenCalls = new Set(prev.calls.map((c) => c.id));
-    const seenReady = new Set(prev.orders.filter((o) => o.status === "READY").map((o) => o.id));
-    if (next.calls.some((c) => !seenCalls.has(c.id))) beep([988, 784, 988]);
-    else if (next.orders.some((o) => o.status === "READY" && !seenReady.has(o.id))) beep([784, 1047]);
+  const live = useLiveData<BoardDTO>("/api/tablero", {
+    onChange: (prev, next) => {
+      if (!prev) return;
+      const seenCalls = new Set(prev.calls.map((c) => c.id));
+      const seenReady = new Set(prev.orders.filter((o) => o.status === "READY").map((o) => o.id));
+      if (next.calls.some((c) => !seenCalls.has(c.id))) beep([988, 784, 988]);
+      else if (next.orders.some((o) => o.status === "READY" && !seenReady.has(o.id))) beep([784, 1047]);
+    },
   });
 
-  async function run(action: () => Promise<unknown>) {
+  async function act(url: string, method: string, body?: unknown) {
     setError(null);
     try {
-      await action();
+      await sendJSON(url, method, body);
       return true;
     } catch (err) {
-      setError(errorMessage(err));
+      setError(err instanceof Error ? err.message : "Error");
       return false;
+    } finally {
+      live.refresh();
     }
   }
 
-  const actions: Actions = {
-    deliver: (orderId) => run(() => setStatus({ orderId, status: "DELIVERED" })),
-    resolve: (callId) => run(() => resolveCall({ callId })),
-    closeTable: (table) => run(() => closeTable({ tableNumber: table })),
-  };
-
+  const board = live.data;
   const tasks: Task[] = board
     ? [
         ...board.calls.map((call): Task => ({
@@ -96,14 +81,14 @@ export function WaiterBoard() {
             since: order.updatedAt,
             order,
           })),
-      ].sort((a, b) => a.since - b.since)
+      ].sort((a, b) => a.since.localeCompare(b.since))
     : [];
 
   return (
     <div className="mx-auto min-h-dvh max-w-3xl bg-stone-50 pb-10">
-      <StaffHeader title="Mesero" soundOn={soundOn} onSoundOn={enableSound} />
+      <StaffHeader title="Mesero" connected={live.connected} soundOn={soundOn} onSoundOn={enableSound} />
 
-      {error && <div className="bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div>}
+      {(error || live.error) && <div className="bg-red-50 px-4 py-2 text-sm text-red-700">{error ?? live.error}</div>}
 
       <section className="p-4">
         <h2 className="mb-3 flex items-center gap-2 text-lg font-bold">
@@ -123,7 +108,7 @@ export function WaiterBoard() {
 
         <ul className="space-y-3">
           {tasks.map((task) => (
-            <TaskCard key={task.key} task={task} now={now} actions={actions} onOpenTable={setOpenTable} />
+            <TaskCard key={task.key} task={task} now={now} onAct={act} onOpenTable={setOpenTable} />
           ))}
         </ul>
       </section>
@@ -169,24 +154,25 @@ export function WaiterBoard() {
           table={openTable}
           board={board}
           now={now}
-          error={error}
           onClose={() => setOpenTable(null)}
-          actions={actions}
+          onAct={act}
         />
       )}
     </div>
   );
 }
 
+type ActFn = (url: string, method: string, body?: unknown) => Promise<boolean>;
+
 function TaskCard({
   task,
   now,
-  actions,
+  onAct,
   onOpenTable,
 }: {
   task: Task;
   now: number;
-  actions: Actions;
+  onAct: ActFn;
   onOpenTable: (table: number) => void;
 }) {
   const waiting = minutesSince(task.since, now);
@@ -228,8 +214,8 @@ function TaskCard({
         <button
           onClick={() =>
             task.kind === "order"
-              ? actions.deliver(task.order.id)
-              : actions.resolve(task.call.id)
+              ? onAct(`/api/pedidos/${task.order.id}`, "PATCH", { status: "DELIVERED" })
+              : onAct(`/api/llamados/${task.call.id}`, "DELETE")
           }
           className="mt-2 w-full rounded-xl bg-stone-900 py-2.5 text-sm font-semibold text-white active:bg-stone-700"
         >
@@ -244,20 +230,25 @@ function TableDetail({
   table,
   board,
   now,
-  error,
   onClose,
-  actions,
+  onAct,
 }: {
   table: number;
   board: BoardDTO;
   now: number;
-  error: string | null;
   onClose: () => void;
-  actions: Actions;
+  onAct: ActFn;
 }) {
-  const state = useQuery(api.tables.state, { tableNumber: table });
+  const detail = useLiveData<TableStateDTO>(`/api/mesas/${table}`);
   const calls = board.calls.filter((c) => c.table === table);
+  const state = detail.data;
   const undelivered = state?.orders.filter((o) => o.status !== "DELIVERED").length ?? 0;
+
+  async function run(url: string, method: string, body?: unknown) {
+    const ok = await onAct(url, method, body);
+    detail.refresh();
+    return ok;
+  }
 
   return (
     <Sheet onClose={onClose}>
@@ -275,14 +266,13 @@ function TableDetail({
       </div>
 
       <div className="space-y-3 overflow-y-auto p-5">
-        {error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
         {calls.map((call) => (
           <div key={call.id} className="flex items-center gap-3 rounded-xl bg-brand-50 p-3 ring-1 ring-brand-500">
             <span className="flex-1 text-sm font-medium">
               {call.type === "BILL" ? "Pide la cuenta" : "Llama al mesero"} · {elapsedLabel(call.createdAt, now)}
             </span>
             <button
-              onClick={() => actions.resolve(call.id)}
+              onClick={() => run(`/api/llamados/${call.id}`, "DELETE")}
               className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm font-semibold text-white"
             >
               Atendido
@@ -290,7 +280,7 @@ function TableDetail({
           </div>
         ))}
 
-        {!state && <p className="py-6 text-center text-stone-500">Cargando…</p>}
+        {!state && <p className="py-6 text-center text-stone-500">{detail.error ?? "Cargando…"}</p>}
         {state && !state.sessionOpen && (
           <p className="py-6 text-center text-stone-500">Mesa libre, sin cuenta abierta.</p>
         )}
@@ -299,7 +289,7 @@ function TableDetail({
           <div key={order.id} className="rounded-xl p-3 ring-1 ring-stone-200">
             <div className="flex items-center justify-between text-sm">
               <span className="text-stone-500">
-                #{shortId(order.id)} · {elapsedLabel(order.createdAt, now)}
+                #{order.id} · {elapsedLabel(order.createdAt, now)}
               </span>
               <span
                 className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
@@ -325,7 +315,7 @@ function TableDetail({
             </ul>
             {order.status === "READY" && (
               <button
-                onClick={() => actions.deliver(order.id)}
+                onClick={() => run(`/api/pedidos/${order.id}`, "PATCH", { status: "DELIVERED" })}
                 className="mt-2 w-full rounded-lg bg-emerald-600 py-2 text-sm font-semibold text-white"
               >
                 Entregado
@@ -345,7 +335,7 @@ function TableDetail({
             disabled={undelivered > 0}
             onClick={async () => {
               if (!confirm(`¿Cobrar ${formatCLP(state.total)} y liberar la mesa ${table}?`)) return;
-              if (await actions.closeTable(table)) onClose();
+              if (await run(`/api/mesas/${table}/cerrar`, "POST")) onClose();
             }}
             className="w-full rounded-2xl bg-stone-900 py-3.5 font-semibold text-white disabled:bg-stone-300"
           >

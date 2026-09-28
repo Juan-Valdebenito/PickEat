@@ -1,36 +1,38 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "convex/react";
-import { api } from "@convex/_generated/api";
-import { errorMessage } from "@/lib/errors";
-import { formatCLP, shortId, ORDER_STATUSES, STATUS_LABEL, type CallType } from "@/lib/constants";
+import { formatCLP, ORDER_STATUSES, STATUS_LABEL, type CallType } from "@/lib/constants";
 import type { OrderDTO, TableStateDTO } from "@/lib/types";
 
 type Props = {
   table: number;
-  state: TableStateDTO | undefined;
+  state: TableStateDTO | null;
+  error: string | null;
   onToast: (message: string) => void;
 };
 
-export function AccountView({ table, state, onToast }: Props) {
-  const callWaiter = useMutation(api.tables.callWaiter);
+export function AccountView({ table, state, error, onToast }: Props) {
   const [busy, setBusy] = useState<CallType | null>(null);
 
   async function call(type: CallType) {
     setBusy(type);
     try {
-      await callWaiter({ tableNumber: table, type });
+      const res = await fetch(`/api/mesas/${table}/llamados`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
       onToast(type === "BILL" ? "Le avisamos al mesero que quieres la cuenta" : "El mesero viene en camino");
     } catch (err) {
-      onToast(errorMessage(err, "No se pudo avisar al mesero"));
+      onToast(err instanceof Error && err.message ? err.message : "No se pudo avisar al mesero");
     } finally {
       setBusy(null);
     }
   }
 
   if (!state) {
-    return <p className="p-8 text-center text-stone-500">Cargando…</p>;
+    return <p className="p-8 text-center text-stone-500">{error ?? "Cargando…"}</p>;
   }
 
   const waiterPending = state.pendingCalls.includes("WAITER");
@@ -108,7 +110,7 @@ function OrderCard({ order }: { order: OrderDTO }) {
     <article className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-200">
       <div className="flex items-center justify-between">
         <div className="text-sm text-stone-500">
-          Pedido #{shortId(order.id)} · {time}
+          Pedido #{order.id} · {time}
         </div>
         <span
           className={`rounded-full px-2.5 py-1 text-xs font-semibold ${

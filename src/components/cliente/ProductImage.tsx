@@ -8,12 +8,6 @@ const GRADIENTS = [
   "from-amber-200 to-yellow-100",
 ];
 
-function hash(text: string) {
-  let h = 0;
-  for (const ch of text) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return h;
-}
-
 // Si el producto no tiene foto se muestra un placeholder con su inicial.
 export function ProductImage({ product, className = "" }: { product: MenuProduct; className?: string }) {
   if (product.imageUrl) {
@@ -24,7 +18,7 @@ export function ProductImage({ product, className = "" }: { product: MenuProduct
     <div
       aria-hidden
       className={`flex items-center justify-center bg-gradient-to-br text-3xl font-bold text-stone-700/40 ${
-        GRADIENTS[hash(product.id) % GRADIENTS.length]
+        GRADIENTS[product.id % GRADIENTS.length]
       } ${className}`}
     >
       {product.name.charAt(0)}

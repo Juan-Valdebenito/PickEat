@@ -1,5 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "nextjs",
-  "buildCommand": "pnpm exec convex deploy --cmd \"pnpm build\""
+  "framework": "nextjs"
 }
