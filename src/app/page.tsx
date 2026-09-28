@@ -26,7 +26,7 @@ export default async function Home() {
         Pedidos desde la mesa. Escanea el QR de una mesa con tu celular o abre su enlace.
       </p>
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2">
+      <div className="mt-8 grid gap-4 sm:grid-cols-3">
         <Link
           href="/cocina"
           className="rounded-2xl bg-stone-900 p-6 text-white shadow-sm transition hover:bg-stone-800"
@@ -40,6 +40,13 @@ export default async function Home() {
         >
           <div className="text-xl font-semibold">Vista del mesero →</div>
           <p className="mt-1 text-sm text-brand-100">Pedidos listos, llamados y cuentas abiertas.</p>
+        </Link>
+        <Link
+          href="/admin"
+          className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-stone-200 transition hover:ring-brand-500"
+        >
+          <div className="text-xl font-semibold">Panel del dueño →</div>
+          <p className="mt-1 text-sm text-stone-500">Ventas del día, platos agotados y precios.</p>
         </Link>
       </div>
 

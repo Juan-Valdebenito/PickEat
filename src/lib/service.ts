@@ -14,6 +14,7 @@ import type {
   NewOrderItem,
   OrderDTO,
   ProductOption,
+  SalesSummaryDTO,
   TableStateDTO,
 } from "./types";
 
@@ -296,4 +297,81 @@ export async function closeTable(tableNumber: number) {
     }),
     prisma.tableSession.update({ where: { id: session.id }, data: { closedAt: now } }),
   ]);
+}
+
+// ---------- Panel del dueño ----------
+
+const TIME_ZONE = "America/Santiago";
+
+// Inicio del día de hoy en hora de Chile, sin importar la zona horaria del servidor (Vercel usa UTC).
+function startOfTodayInChile(now = new Date()) {
+  const date = new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE }).format(now); // YYYY-MM-DD
+  const offset = new Intl.DateTimeFormat("en-US", { timeZone: TIME_ZONE, timeZoneName: "longOffset" })
+    .formatToParts(now)
+    .find((p) => p.type === "timeZoneName")!
+    .value.replace("GMT", ""); // "-03:00"
+  return { date, start: new Date(`${date}T00:00:00${offset || "Z"}`) };
+}
+
+function hourInChile(date: Date) {
+  return Number(new Intl.DateTimeFormat("en-US", { timeZone: TIME_ZONE, hour: "numeric", hourCycle: "h23" }).format(date));
+}
+
+export async function getSalesSummary(): Promise<SalesSummaryDTO> {
+  const { date, start } = startOfTodayInChile();
+  const orders = await prisma.order.findMany({
+    where: { createdAt: { gte: start } },
+    select: { createdAt: true, sessionId: true, items: { select: { name: true, unitPrice: true, quantity: true } } },
+  });
+
+  const products = new Map<string, { name: string; quantity: number; revenue: number }>();
+  const hours = new Map<number, { hour: number; revenue: number; orders: number }>();
+  let revenue = 0;
+
+  for (const order of orders) {
+    const total = orderTotal(order);
+    revenue += total;
+
+    const hour = hourInChile(order.createdAt);
+    const bucket = hours.get(hour) ?? { hour, revenue: 0, orders: 0 };
+    bucket.revenue += total;
+    bucket.orders += 1;
+    hours.set(hour, bucket);
+
+    for (const item of order.items) {
+      const row = products.get(item.name) ?? { name: item.name, quantity: 0, revenue: 0 };
+      row.quantity += item.quantity;
+      row.revenue += item.unitPrice * item.quantity;
+      products.set(item.name, row);
+    }
+  }
+
+  const tablesServed = new Set(orders.map((o) => o.sessionId)).size;
+  return {
+    date,
+    revenue,
+    orders: orders.length,
+    tablesServed,
+    averageTicket: tablesServed ? Math.round(revenue / tablesServed) : 0,
+    topProducts: [...products.values()].sort((a, b) => b.quantity - a.quantity || b.revenue - a.revenue).slice(0, 5),
+    byHour: [...hours.values()].sort((a, b) => a.hour - b.hour),
+  };
+}
+
+export async function updateProduct(id: number, changes: { price?: unknown; available?: unknown }) {
+  const data: { price?: number; available?: boolean } = {};
+  if (changes.price !== undefined) {
+    const price = Number(changes.price);
+    if (!Number.isInteger(price) || price < 0 || price > 10_000_000) throw new ServiceError("Precio inválido");
+    data.price = price;
+  }
+  if (changes.available !== undefined) {
+    if (typeof changes.available !== "boolean") throw new ServiceError("Disponibilidad inválida");
+    data.available = changes.available;
+  }
+  if (Object.keys(data).length === 0) throw new ServiceError("No hay cambios");
+
+  const exists = await prisma.product.count({ where: { id } });
+  if (!exists) throw new ServiceError("El producto no existe", 404);
+  await prisma.product.update({ where: { id }, data });
 }

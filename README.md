@@ -34,6 +34,7 @@ Abre http://localhost:3000. Desde ahí se accede a:
 | `/mesa/5` | Cliente (lo que abre el QR de la mesa 5) |
 | `/cocina` | Pantalla de cocina |
 | `/mesero` | Celular o tablet del mesero |
+| `/admin` | Panel del dueño: ventas del día, platos agotados y precios |
 
 Para probar el flujo completo, abre `/mesa/5`, `/cocina` y `/mesero` en tres pestañas o dispositivos. En cocina y mesero presiona **"Activar sonido"**, porque el navegador no permite reproducir audio sin una interacción previa.
 
@@ -52,6 +53,11 @@ npm run build && npm start
 3. Pestaña **Deployments** → **Redeploy**.
 
 El script `vercel-build` de `package.json` aplica las migraciones, carga la carta si la base está vacía y compila. Cada `git push` a `main` vuelve a desplegar.
+
+## Panel del dueño (`/admin`)
+
+- **Ventas de hoy:** total vendido, cantidad de pedidos, mesas atendidas y ticket promedio por mesa, los 5 platos más vendidos y las ventas por hora (con la hora punta). El día se calcula en hora de Chile.
+- **Carta:** marcar un plato como **agotado** con un toque y cambiar precios. La carta de los clientes se actualiza en segundos y el servidor rechaza pedidos de platos agotados. Los pedidos ya hechos conservan el precio con que se pidieron.
 
 ## Flujo del pedido
 
@@ -94,11 +100,14 @@ src/
 | GET | `/api/tablero` | Pedidos activos, llamados pendientes y mesas abiertas |
 | PATCH | `/api/pedidos/:id` | `{ status }`: solo se permite avanzar o retroceder un paso |
 | DELETE | `/api/llamados/:id` | Marcar un llamado como atendido |
+| GET | `/api/menu` | Carta con disponibilidad actual |
+| GET | `/api/admin` | Resumen de ventas del día y carta completa |
+| PATCH | `/api/admin/productos/:id` | `{ price?, available? }`: cambiar precio o marcar agotado |
 
 ## Decisiones y limitaciones conocidas
 
 - **Actualización por sondeo cada 3 s.** En Vercel las funciones son efímeras y no comparten memoria, así que WebSockets o SSE con un bus en memoria no son fiables. Sondear es gratis y suficiente para cocina y mesero (el aviso llega con hasta 3 s de retraso); las pantallas dejan de consultar cuando la pestaña no está visible. Para avisos instantáneos se podría usar un servicio como Pusher o Ably. Los sonidos se disparan comparando cada respuesta con la anterior (pedido nuevo, llamado nuevo, plato listo).
-- **Sin autenticación.** `/cocina` y `/mesero` son públicas y cualquier persona que conozca la URL `/mesa/5` puede pedir en esa mesa. Para producción se necesita login para el personal y un token aleatorio en el QR de cada mesa (`/mesa/5?t=…`), que se rote al cerrar la cuenta.
+- **Sin autenticación.** `/cocina`, `/mesero` y `/admin` son públicas y cualquier persona que conozca la URL `/mesa/5` puede pedir en esa mesa. Para producción se necesita login para el personal y un token aleatorio en el QR de cada mesa (`/mesa/5?t=…`), que se rote al cerrar la cuenta.
 - Las opciones de producto y las opciones elegidas se guardan como JSON en columnas de texto (herencia de la primera versión en SQLite); podrían pasar a columnas `Json` de PostgreSQL.
 - Con el plan gratis de Neon, mantener las pantallas abiertas todo el día evita que la base se suspenda y consume horas de cómputo; para una demo o un local pequeño alcanza.
 

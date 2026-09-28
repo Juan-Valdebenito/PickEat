@@ -66,3 +66,15 @@ export type NewOrderItem = {
   selectedOptions: Record<string, string>;
   notes: string;
 };
+
+export type SalesSummaryDTO = {
+  date: string; // YYYY-MM-DD en hora de Chile
+  revenue: number;
+  orders: number;
+  tablesServed: number;
+  averageTicket: number; // venta promedio por mesa atendida
+  topProducts: { name: string; quantity: number; revenue: number }[];
+  byHour: { hour: number; revenue: number; orders: number }[];
+};
+
+export type AdminDTO = { summary: SalesSummaryDTO; menu: MenuCategory[] };

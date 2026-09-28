@@ -12,8 +12,11 @@ import { ProductSheet } from "./ProductSheet";
 
 type Props = { table: number; menu: MenuCategory[] };
 
-export function TableApp({ table, menu }: Props) {
-  const products = useMemo(() => menu.flatMap((c) => c.products), [menu]);
+export function TableApp({ table, menu: initialMenu }: Props) {
+  // El carrito se rehidrata con la carta inicial; la carta en pantalla se mantiene
+  // al día para reflejar al instante los platos que el dueño marque como agotados.
+  const products = useMemo(() => initialMenu.flatMap((c) => c.products), [initialMenu]);
+  const menu = useLiveData<MenuCategory[]>("/api/menu").data ?? initialMenu;
   const cart = useCart(table, products);
   const live = useLiveData<TableStateDTO>(`/api/mesas/${table}`);
 
