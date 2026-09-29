@@ -48,6 +48,14 @@ export function StaffHeader({
       </span>
       <div className="ml-auto flex items-center gap-3">
         {children}
+        <Link
+          href="/admin"
+          className={`rounded-full px-4 py-2 text-sm font-semibold ${
+            dark ? "bg-stone-800 text-stone-100 hover:bg-stone-700" : "bg-stone-900 text-white hover:bg-stone-700"
+          }`}
+        >
+          Admin
+        </Link>
         {!soundOn && (
           <button
             onClick={onSoundOn}

@@ -21,7 +21,15 @@ export default async function Home() {
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-10">
-      <h1 className="text-3xl font-bold tracking-tight">Restaurante</h1>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-3xl font-bold tracking-tight">Restaurante</h1>
+        <Link
+          href="/admin"
+          className="rounded-full bg-stone-900 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-stone-700"
+        >
+          Admin
+        </Link>
+      </div>
       <p className="mt-2 text-stone-600">
         Pedidos desde la mesa. Escanea el QR de una mesa con tu celular o abre su enlace.
       </p>
