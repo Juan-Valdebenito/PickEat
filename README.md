@@ -59,6 +59,10 @@ El script `vercel-build` de `package.json` aplica las migraciones, carga la cart
 - **Ventas de hoy:** total vendido, cantidad de pedidos, mesas atendidas y ticket promedio por mesa, los 5 platos más vendidos y las ventas por hora (con la hora punta). El día se calcula en hora de Chile.
 - **Carta:** marcar un plato como **agotado** con un toque y cambiar precios. La carta de los clientes se actualiza en segundos y el servidor rechaza pedidos de platos agotados. Los pedidos ya hechos conservan el precio con que se pidieron.
 
+### Simulación de servicio (para demos)
+
+En `/admin`, **Iniciar simulación** genera clientes durante 15 minutos: mesas que llegan y piden, segundas rondas, llamados al mesero y pedidos de cuenta. Si nadie interviene, el "personal simulado" avanza los pedidos lentamente (cocina → mesero → cobro), dejando margen para mostrar los botones a mano. Como Vercel no tiene procesos en segundo plano, la simulación avanza cuando alguna pantalla del personal consulta el servidor (`src/lib/demo.ts`), así que debe estar abierta la cocina, el mesero o el panel.
+
 ## Flujo del pedido
 
 1. El cliente abre `/mesa/5`, elige productos (con opciones obligatorias como el punto de la carne y un comentario libre) y confirma.

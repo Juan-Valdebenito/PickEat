@@ -85,3 +85,10 @@ model WaiterCall {
   createdAt  DateTime     @default(now())
   resolvedAt DateTime?
 }
+
+// Estado del simulador de servicio para demos (una sola fila, id = 1).
+model DemoState {
+  id          Int       @id @default(1)
+  activeUntil DateTime?
+  lastTickAt  DateTime?
+}

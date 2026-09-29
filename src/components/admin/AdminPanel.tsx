@@ -40,6 +40,7 @@ export function AdminPanel() {
       </header>
 
       {live.error && <div className="bg-red-50 px-4 py-2 text-sm text-red-700">{live.error}</div>}
+      {live.data && <DemoControl demo={live.data.demo} onChange={live.refresh} />}
       {!live.data && !live.error && <p className="p-8 text-center text-stone-500">Cargando…</p>}
 
       {live.data &&
@@ -49,6 +50,67 @@ export function AdminPanel() {
           <MenuEditor menu={live.data.menu} onSaved={live.refresh} />
         ))}
     </div>
+  );
+}
+
+// ---------- Simulación ----------
+
+function DemoControl({ demo, onChange }: { demo: AdminDTO["demo"]; onChange: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!demo.active) return;
+    const id = setInterval(() => setNow(Date.now()), 1_000);
+    return () => clearInterval(id);
+  }, [demo.active]);
+
+  async function toggle() {
+    setBusy(true);
+    setError(null);
+    try {
+      await sendJSON("/api/demo", "POST", { action: demo.active ? "stop" : "start" });
+      onChange();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo cambiar la simulación");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const remaining = demo.activeUntil ? Math.max(0, new Date(demo.activeUntil).getTime() - now) : 0;
+  const mm = Math.floor(remaining / 60_000);
+  const ss = String(Math.floor((remaining % 60_000) / 1000)).padStart(2, "0");
+
+  return (
+    <section
+      className={`mx-4 mt-4 flex flex-wrap items-center gap-3 rounded-2xl p-4 ring-1 ${
+        demo.active ? "bg-emerald-50 ring-emerald-300" : "bg-white ring-stone-200"
+      }`}
+    >
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 font-semibold">
+          {demo.active && <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500" />}
+          Simulación de servicio
+        </div>
+        <p className="text-sm text-stone-600">
+          {demo.active
+            ? `Activa: llegan clientes, piden y llaman al mesero solos. Se apaga en ${mm}:${ss}.`
+            : "Genera pedidos y llamados automáticos para mostrar el sistema funcionando. Dura 15 minutos."}
+        </p>
+        {error && <p className="text-sm text-red-700">{error}</p>}
+      </div>
+      <button
+        onClick={toggle}
+        disabled={busy}
+        className={`rounded-full px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50 ${
+          demo.active ? "bg-stone-900 hover:bg-stone-700" : "bg-emerald-600 hover:bg-emerald-700"
+        }`}
+      >
+        {busy ? "…" : demo.active ? "Detener simulación" : "▶ Iniciar simulación"}
+      </button>
+    </section>
   );
 }
 

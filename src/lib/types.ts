@@ -77,4 +77,6 @@ export type SalesSummaryDTO = {
   byHour: { hour: number; revenue: number; orders: number }[];
 };
 
-export type AdminDTO = { summary: SalesSummaryDTO; menu: MenuCategory[] };
+export type DemoStatusDTO = { active: boolean; activeUntil: string | null };
+
+export type AdminDTO = { summary: SalesSummaryDTO; menu: MenuCategory[]; demo: DemoStatusDTO };
